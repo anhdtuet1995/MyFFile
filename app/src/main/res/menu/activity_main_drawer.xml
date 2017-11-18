@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:showIn="navigation_view">
+
+    <item android:title="Manager">
+        <menu>
+            <item
+                android:id="@+id/nav_file"
+                android:icon="@mipmap/ic_menu_file"
+                android:title="My FTP Storage" />
+        </menu>
+    </item>
+
+    <item android:title="Communicate">
+        <menu>
+            <item
+                android:id="@+id/nav_upload"
+                android:icon="@mipmap/ic_menu_upload"
+                android:title="Uploads" />
+
+            <item
+                android:id="@+id/nav_download"
+                android:icon="@mipmap/ic_menu_download"
+                android:title="Downloads" />
+        </menu>
+    </item>
+
+</menu>
