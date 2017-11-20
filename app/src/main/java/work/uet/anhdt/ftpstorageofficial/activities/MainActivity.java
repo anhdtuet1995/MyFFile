@@ -2,6 +2,7 @@ package work.uet.anhdt.ftpstorageofficial.activities;
 
 import android.Manifest;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -22,16 +23,21 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.ProgressBar;
+import android.widget.Toast;
+
+import com.nbsp.materialfilepicker.ui.FilePickerActivity;
 
 import work.uet.anhdt.ftpstorageofficial.R;
 import work.uet.anhdt.ftpstorageofficial.fragments.DownloadFragment;
 import work.uet.anhdt.ftpstorageofficial.fragments.FileFragment;
 import work.uet.anhdt.ftpstorageofficial.fragments.UploadFragment;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadPool;
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadPool;
 import work.uet.anhdt.ftpstorageofficial.util.Constant;
 
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, FileFragment.OnFileFragmentInteractionListener,
-                    UploadFragment.OnUploadFragmentInteractionListener, DownloadFragment.OnDownloadFragmentInteractionListener {
+        UploadFragment.OnUploadFragmentInteractionListener, DownloadFragment.OnDownloadFragmentInteractionListener {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
@@ -43,15 +49,20 @@ public class MainActivity extends AppCompatActivity
     private Toolbar toolbar;
     private NavigationView navigationView;
 
+    private UploadPool uploadPool;
+    private DownloadPool downloadPool;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate");
+        Log.d(TAG, "onCreate ");
         setContentView(R.layout.activity_main);
 
         requestForPermission();
 
         initFirstFragment();
+
+        initPoolForUpAndDown();
 
         toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -70,6 +81,12 @@ public class MainActivity extends AppCompatActivity
         navigationView.setNavigationItemSelectedListener(this);
     }
 
+    private void initPoolForUpAndDown() {
+        downloadPool = DownloadPool.getDownloadPool();
+        uploadPool = UploadPool.getUploadPool();
+    }
+
+
     private void initFirstFragment() {
 
         // Check that the activity is using the layout version with
@@ -81,7 +98,7 @@ public class MainActivity extends AppCompatActivity
 
             // Add the fragment to the 'fragment_container' FrameLayout
             getSupportFragmentManager().beginTransaction()
-                    .add(R.id.fragment_container, fileFragment, Constant.FILE_TAB).commit();
+                    .replace(R.id.fragment_container, fileFragment).commit();
         }
 
     }
@@ -191,56 +208,34 @@ public class MainActivity extends AppCompatActivity
         FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
         if (id == R.id.nav_file) {
             Log.d(TAG, "FileFragment is Selected");
-            if (fragmentManager.findFragmentByTag(Constant.FILE_TAB) == null) {
-                fileFragment = new FileFragment();
-                fragmentTransaction.add(R.id.fragment_container, fileFragment, Constant.FILE_TAB);
-            }
-            else {
-                if (uploadFragment != null) {
-                    fragmentTransaction.hide(uploadFragment);
-                }
-                if (downloadFragment != null) {
-                    fragmentTransaction.hide(downloadFragment);
-                }
-                fragmentTransaction.show(fileFragment);
-            }
+
+            fileFragment = new FileFragment();
+            fragmentTransaction.replace(R.id.fragment_container, fileFragment);
+
         }
         else if (id == R.id.nav_upload) {
-            Log.d(TAG, "UploadFragment is Selected");
-            if (fragmentManager.findFragmentByTag(Constant.UPLOAD_TAB) == null) {
-                uploadFragment = new UploadFragment();
-                fragmentTransaction.add(R.id.fragment_container, uploadFragment, Constant.UPLOAD_TAB);
-            }
-            else {
-                if (fileFragment != null) {
-                    fragmentTransaction.hide(fileFragment);
-                }
-                if (downloadFragment != null) {
-                    fragmentTransaction.hide(downloadFragment);
-                }
-                fragmentTransaction.show(uploadFragment);
-            }
+
+            uploadFragment = new UploadFragment();
+            fragmentTransaction.replace(R.id.fragment_container, uploadFragment);
+
 
         }
         else if (id == R.id.nav_download) {
-            Log.d(TAG, "DownloadFragment is Selected");
-            if (fragmentManager.findFragmentByTag(Constant.DOWNLOAD_TAB) == null) {
-                downloadFragment = new DownloadFragment();
-                fragmentTransaction.add(R.id.fragment_container, downloadFragment, Constant.DOWNLOAD_TAB);
-            }
-            else {
-                if (fileFragment != null) {
-                    fragmentTransaction.hide(fileFragment);
-                }
-                if (uploadFragment != null) {
-                    fragmentTransaction.hide(uploadFragment);
-                }
-                fragmentTransaction.show(downloadFragment);
-            }
+            downloadFragment = new DownloadFragment();
+            fragmentTransaction.replace(R.id.fragment_container, downloadFragment);
+
         }
         fragmentTransaction.commit();
         ((DrawerLayout)findViewById(R.id.drawer_layout)).closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
+        if(requestCode == 10 && resultCode == RESULT_OK){
+            String filePath = data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH);
+            Toast.makeText(this, "Start upload file " + filePath, Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override

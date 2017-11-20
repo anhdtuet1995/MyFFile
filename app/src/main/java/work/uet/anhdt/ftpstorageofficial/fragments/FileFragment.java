@@ -5,7 +5,9 @@ import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -13,6 +15,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
+
+import com.nbsp.materialfilepicker.MaterialFilePicker;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +39,7 @@ import work.uet.anhdt.ftpstorageofficial.services.InitServiceRetrofit;
  * Use the {@link FileFragment#} factory method to
  * create an instance of this fragment.
  */
-public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClickListener{
+public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClickListener, SwipeRefreshLayout.OnRefreshListener, View.OnClickListener{
     private static final String TAG = FileFragment.class.getSimpleName();
 
     private OnFileFragmentInteractionListener mListener;
@@ -43,7 +47,9 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
     private ArrayList<FileInfo> allFiles;
     private FileFTPAdapter fileFTPAdapter;
     private Activity mActivity;
-    
+    private SwipeRefreshLayout swipeRefreshFile;
+    private FloatingActionButton fabUploadFile;
+
     public FileFragment() {
         // Required empty public constructor
     }
@@ -74,11 +80,12 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
             @Override
             public void onResponse(Call<GetFiles> call, Response<GetFiles> response) {
                 if (response.isSuccessful()) {
-                    Log.d(TAG, "get all files success");
+
                     allFiles.clear();
                     GetFiles getFiles = response.body();
                     ArrayList<FileInfo> fileInfos = getFiles.getFiles();
                     allFiles.addAll(fileInfos);
+                    Log.d(TAG, "get all files success: " + allFiles.size());
                 }
                 else {
                     Log.d(TAG, "get all files failed");
@@ -113,16 +120,23 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         Log.d(TAG, "onViewCreated");
-        
+
         initViewForFragment(view);
     }
     
     private void initViewForFragment(View view) {
+        swipeRefreshFile = (SwipeRefreshLayout) view.findViewById(R.id.swipeRefreshFile);
+        swipeRefreshFile.setOnRefreshListener(this);
+
+        fabUploadFile = (FloatingActionButton) view.findViewById(R.id.fabUploadFile);
+        fabUploadFile.setOnClickListener(this);
+
         recyclerViewFileFragment = (RecyclerView) view.findViewById(R.id.recyclerViewFileFragment);
         GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(),2);
         gridLayoutManager.setOrientation(GridLayoutManager.VERTICAL);
         recyclerViewFileFragment.setLayoutManager(gridLayoutManager);
         recyclerViewFileFragment.setAdapter(fileFTPAdapter);
+        fileFTPAdapter.notifyDataSetChanged();
     }
 
     // TODO: Rename method, update argument and hook method into UI event
@@ -162,6 +176,27 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
     @Override
     public void onIconClick(View view, int position) {
 
+    }
+
+    //swipe refresh
+    @Override
+    public void onRefresh() {
+        getAllFiles();
+        fileFTPAdapter.notifyDataSetChanged();
+        swipeRefreshFile.setRefreshing(false);
+    }
+
+    @Override
+    public void onClick(View view) {
+        switch (view.getId()) {
+            case R.id.fabUploadFile:
+                //fab upload
+                new MaterialFilePicker()
+                        .withActivity(mActivity)
+                        .withRequestCode(10)
+                        .start();
+                break;
+        }
     }
 
     /**

@@ -49,7 +49,6 @@ public class FileFTPAdapter extends RecyclerView.Adapter<FileFTPAdapter.ListItem
         View view = LayoutInflater
                 .from(parent.getContext())
                 .inflate(R.layout.file_item, parent, false);
-
         return new ListItemViewHolder(view);
     }
 

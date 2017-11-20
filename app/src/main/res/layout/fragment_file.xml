@@ -6,11 +6,12 @@
     tools:context="work.uet.anhdt.ftpstorageofficial.fragments.FileFragment"
     android:background="@android:color/white">
 
-    <RelativeLayout
+    <android.support.v4.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshFile"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_margin="10dp">
-
+        android:layout_margin="10dp"
+        >
         <android.support.v7.widget.RecyclerView
             android:id="@+id/recyclerViewFileFragment"
             android:layout_width="fill_parent"
@@ -19,14 +20,11 @@
             android:clickable="true"
             android:focusableInTouchMode="true"
             >
-
         </android.support.v7.widget.RecyclerView>
-
-    </RelativeLayout>
-
+    </android.support.v4.widget.SwipeRefreshLayout>
 
     <android.support.design.widget.FloatingActionButton
-        android:id="@+id/fab"
+        android:id="@+id/fabUploadFile"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
