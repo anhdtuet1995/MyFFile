@@ -5,10 +5,23 @@
     tools:context="work.uet.anhdt.ftpstorageofficial.fragments.DownloadFragment"
     android:background="@android:color/white">
 
-    <!-- TODO: Update blank fragment layout -->
-    <TextView
+    <android.support.v4.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshDownload"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:text="Download" />
+        android:layout_margin="10dp"
+        >
+
+        <android.support.v7.widget.RecyclerView
+            android:id="@+id/recyclerViewDownload"
+            android:layout_width="fill_parent"
+            android:layout_height="match_parent"
+            android:focusable="true"
+            android:clickable="true"
+            android:focusableInTouchMode="true"
+            >
+        </android.support.v7.widget.RecyclerView>
+
+    </android.support.v4.widget.SwipeRefreshLayout>
 
 </FrameLayout>

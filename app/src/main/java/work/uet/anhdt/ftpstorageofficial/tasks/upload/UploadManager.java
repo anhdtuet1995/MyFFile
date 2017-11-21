@@ -74,6 +74,25 @@ public class UploadManager extends Observable implements Runnable {
         uploadId = metadata.getId();
     }
 
+    public UploadManager(UploadMetadata metadata, List<UploadPartsMetadata> partsMeta) {
+        Log.d(TAG_UPLOAD, "init uploadmanager with metadata="+ metadata.getId() + ", partsMeta=" + partsMeta.size());
+        workers		= new UploadWorker[MAX_WORKER];
+        workerThreads	= new Thread[MAX_WORKER];
+
+        this.metadata		= metadata;
+        uploadURL	= metadata.getUrl();
+
+        partsMetaList = new ArrayList<>(partsMeta);
+
+        uploadId 	= metadata.getId();
+        uploadSize	= metadata.getFileSize();
+        status 		= metadata.getStatus();
+
+        workersAtWork	= partsMeta.size();
+
+        uploadCompleted	= metadata.getCompleted();
+    }
+
     /**
      * Start a new download
      */
@@ -127,6 +146,12 @@ public class UploadManager extends Observable implements Runnable {
         status = UploadStatus.PAUSED;
     }
 
+    /**
+     * Resume the upload.
+     */
+    public void resume() {
+        status = UploadStatus.UPLOADING;
+    }
 
     /**
      * Returns the current upload status.
@@ -380,13 +405,13 @@ public class UploadManager extends Observable implements Runnable {
         UploadPartsMetadata meta = uploadWorker.getPartMeta();
 
         long startRange		= meta.getStart();
-        long totalDownloaded= uploadWorker.getCompleted();
+        long totalUpload= uploadWorker.getCompleted();
         long uploadSize 	= uploadWorker.getUploadSize();
 
-        boolean completed = (totalDownloaded == uploadSize);
+        boolean completed = (totalUpload == uploadSize);
 
         // Update the start range of current part
-        meta.setStart(startRange + totalDownloaded);
+        meta.setStart(startRange + totalUpload);
 
         if (completed)
             factory.removeSavedUploadParts(meta);
@@ -524,58 +549,62 @@ public class UploadManager extends Observable implements Runnable {
                     e.printStackTrace();
                     Log.e(TAG_WORKER, "Error connect to server");
                 }
-                outputStream.writeBytes(lineEnd);
-                outputStream.writeBytes(twoHyphens + boundary + lineEnd);
-                outputStream.writeBytes("Content-Disposition: form-data; name=\"original_id\"" + lineEnd);
-                outputStream.writeBytes(lineEnd);
-                outputStream.writeBytes(partMeta.getUploadId() + "");
-                outputStream.writeBytes(lineEnd);
-                outputStream.writeBytes(twoHyphens + boundary + twoHyphens
-                        + lineEnd);
+                // Stop the download if download manager is paused
+                if(status != UploadStatus.PAUSED && status != UploadStatus.ERROR) {
+                    outputStream.writeBytes(lineEnd);
+                    outputStream.writeBytes(twoHyphens + boundary + lineEnd);
+                    outputStream.writeBytes("Content-Disposition: form-data; name=\"original_id\"" + lineEnd);
+                    outputStream.writeBytes(lineEnd);
+                    outputStream.writeBytes(partMeta.getUploadId() + "");
+                    outputStream.writeBytes(lineEnd);
+                    outputStream.writeBytes(twoHyphens + boundary + twoHyphens
+                            + lineEnd);
 
-                // Responses from the server (code and message)
-                int serverResponseCode = conn.getResponseCode();
-                String serverResponseMessage = conn.getResponseMessage();
-                Log.i(TAG_WORKER, "Server Response Code " + serverResponseCode);
+                    // Responses from the server (code and message)
+                    int serverResponseCode = conn.getResponseCode();
+                    String serverResponseMessage = conn.getResponseMessage();
+                    Log.i(TAG_WORKER, "Server Response Code " + serverResponseCode);
 
-                switch (serverResponseCode) {
-                    case 200:
-                        Log.i(TAG_WORKER, "Response Failed");
-                        break;
-                    case 201:
-                        Log.i(TAG_WORKER, "Response Successful");
-                        break;
-                    case 500:
-                        Log.i(TAG_WORKER, serverResponseMessage);
-                        break;
+                    switch (serverResponseCode) {
+                        case 200:
+                            Log.i(TAG_WORKER, "Response Failed");
+                            break;
+                        case 201:
+                            Log.i(TAG_WORKER, "Response Successful");
+                            break;
+                        case 500:
+                            Log.i(TAG_WORKER, serverResponseMessage);
+                            break;
+                    }
+
+                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line+"\n");
+                    }
+                    br.close();
+                    Log.i(TAG_WORKER, sb.toString());
+
+                    String CDate = null;
+                    Date serverTime = new Date(conn.getDate());
+                    try {
+                        DateFormat df = new SimpleDateFormat("yyyy_MM_dd_HH:mm:ss");
+                        CDate = df.format(serverTime);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Log.e("Date Exception", e.getMessage() + " Parse Exception");
+                    }
+                    Log.i(TAG_WORKER, "Server Response Time" + CDate + "");
+
+                    Log.i("File Name in Server : ", metadata.getFileName());
+
+                    fileInputStream.close();
+                    outputStream.flush();
+                    outputStream.close();
+                    outputStream = null;
                 }
 
-                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line+"\n");
-                }
-                br.close();
-                Log.i(TAG_WORKER, sb.toString());
-
-                String CDate = null;
-                Date serverTime = new Date(conn.getDate());
-                try {
-                    DateFormat df = new SimpleDateFormat("yyyy_MM_dd_HH:mm:ss");
-                    CDate = df.format(serverTime);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    Log.e("Date Exception", e.getMessage() + " Parse Exception");
-                }
-                Log.i(TAG_WORKER, "Server Response Time" + CDate + "");
-
-                Log.i("File Name in Server : ", metadata.getFileName());
-
-                fileInputStream.close();
-                outputStream.flush();
-                outputStream.close();
-                outputStream = null;
 
             } catch (MalformedURLException e) {
                 Log.d(TAG_WORKER, "[ERROR] Invalid upload URL. " + e.getMessage());

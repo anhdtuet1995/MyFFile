@@ -103,6 +103,7 @@ public class DownloadManager extends Observable implements Runnable {
         Log.d(TAG, "start a new download");
         try {
             if (status != DownloadStatus.PAUSED) {
+                Log.d(TAG, "update status");
                 downloadFileMetaInformation();
                 updateDownloadStatus();
             }
@@ -112,6 +113,7 @@ public class DownloadManager extends Observable implements Runnable {
         } catch (IOException e) {
             Log.e(TAG,"[ERROR] " + e.getMessage());
 
+            metadata.setStartTime(new Date());
             status = DownloadStatus.ERROR;
             updateDownloadStatus();
 
@@ -222,6 +224,7 @@ public class DownloadManager extends Observable implements Runnable {
      * @throws IOException
      */
     private void downloadFileMetaInformation() throws IOException {
+        Log.d(TAG, "set info for file meta");
         metadata.getLoadFileMetadata();
 
         if(metadata == null)

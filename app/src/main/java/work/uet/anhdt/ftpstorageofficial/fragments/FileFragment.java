@@ -2,12 +2,14 @@ package work.uet.anhdt.ftpstorageofficial.fragments;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.util.Log;
@@ -30,6 +32,7 @@ import work.uet.anhdt.ftpstorageofficial.models.FileInfo;
 import work.uet.anhdt.ftpstorageofficial.models.GetFiles;
 import work.uet.anhdt.ftpstorageofficial.services.GetFilesAPI;
 import work.uet.anhdt.ftpstorageofficial.services.InitServiceRetrofit;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadMetadata;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -42,6 +45,7 @@ import work.uet.anhdt.ftpstorageofficial.services.InitServiceRetrofit;
 public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClickListener, SwipeRefreshLayout.OnRefreshListener, View.OnClickListener{
     private static final String TAG = FileFragment.class.getSimpleName();
 
+    private View rootView;
     private OnFileFragmentInteractionListener mListener;
     private RecyclerView recyclerViewFileFragment;
     private ArrayList<FileInfo> allFiles;
@@ -69,9 +73,12 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
 
     private void initComponentRecycleView() {
         allFiles = new ArrayList<>();
-        getAllFiles();
-        fileFTPAdapter = new FileFTPAdapter(allFiles, this, mActivity);
+        fileFTPAdapter = new FileFTPAdapter(allFiles, mActivity);
+        fileFTPAdapter.setListener(this);
+
     }
+
+
 
     private void getAllFiles() {
         Log.d(TAG, "get all files from server");
@@ -113,7 +120,11 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         Log.d(TAG, "onCreateView");
-        return inflater.inflate(R.layout.fragment_file, container, false);
+
+        if (rootView == null) {
+            rootView = inflater.inflate(R.layout.fragment_file, container, false);
+        }
+        return rootView;
     }
 
     @Override
@@ -123,7 +134,15 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
 
         initViewForFragment(view);
     }
-    
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume()");
+        getAllFiles();
+        fileFTPAdapter.notifyDataSetChanged();
+    }
+
     private void initViewForFragment(View view) {
         swipeRefreshFile = (SwipeRefreshLayout) view.findViewById(R.id.swipeRefreshFile);
         swipeRefreshFile.setOnRefreshListener(this);
@@ -132,18 +151,13 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
         fabUploadFile.setOnClickListener(this);
 
         recyclerViewFileFragment = (RecyclerView) view.findViewById(R.id.recyclerViewFileFragment);
-        GridLayoutManager gridLayoutManager = new GridLayoutManager(getActivity(),2);
+        GridLayoutManager gridLayoutManager = new GridLayoutManager(mActivity,2);
         gridLayoutManager.setOrientation(GridLayoutManager.VERTICAL);
         recyclerViewFileFragment.setLayoutManager(gridLayoutManager);
+
         recyclerViewFileFragment.setAdapter(fileFTPAdapter);
         fileFTPAdapter.notifyDataSetChanged();
-    }
-
-    // TODO: Rename method, update argument and hook method into UI event
-    public void onButtonPressed(Uri uri) {
-        if (mListener != null) {
-            mListener.onFileFragmentInteraction(uri);
-        }
+        Log.d(TAG, "onViewCreated");
     }
 
     @Override
@@ -170,7 +184,30 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
 
     @Override
     public void onItemLongClick(View view, int position) {
+        final FileInfo fileInfo = allFiles.get(position);
+        AlertDialog.Builder builder1 = new AlertDialog.Builder(mActivity);
+        builder1.setMessage("Download " + fileInfo.getFileName() + "!");
+        builder1.setCancelable(true);
 
+        builder1.setPositiveButton(
+                "Yes",
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        mListener.onFileFragmentInteraction(fileInfo.getFilePath());
+                        dialog.cancel();
+                    }
+                });
+
+        builder1.setNegativeButton(
+                "No",
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        dialog.cancel();
+                    }
+                });
+
+        AlertDialog alert11 = builder1.create();
+        alert11.show();
     }
 
     @Override
@@ -192,6 +229,7 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
             case R.id.fabUploadFile:
                 //fab upload
                 new MaterialFilePicker()
+                        .withTitle("Choose file for upload")
                         .withActivity(mActivity)
                         .withRequestCode(10)
                         .start();
@@ -211,6 +249,6 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
      */
     public interface OnFileFragmentInteractionListener {
         // TODO: Update argument type and name
-        void onFileFragmentInteraction(Uri uri);
+        void onFileFragmentInteraction(String path);
     }
 }

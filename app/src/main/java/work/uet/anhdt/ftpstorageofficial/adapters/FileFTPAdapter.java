@@ -37,20 +37,38 @@ public class FileFTPAdapter extends RecyclerView.Adapter<FileFTPAdapter.ListItem
     private OnItemClickListener onItemClickListener;
     private Context context;
 
-    public FileFTPAdapter(ArrayList<FileInfo> allFiles, OnItemClickListener onItemClickListener, Context context) {
+    public FileFTPAdapter(ArrayList<FileInfo> allFiles, Context context) {
         Log.d(TAG, "init");
         this.allFiles = allFiles;
         this.onItemClickListener = onItemClickListener;
         this.context = context;
     }
 
+    public void setListener(OnItemClickListener onItemClickListener) {
+        this.onItemClickListener = onItemClickListener;
+    }
+
+    public void setAllFiles(ArrayList<FileInfo> allFiles) {
+        this.allFiles.clear();
+        this.allFiles.addAll(allFiles);
+        this.notifyDataSetChanged();
+    }
+
     @Override
     public ListItemViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
+        Log.d(TAG, "onCreateViewHolder");
         View view = LayoutInflater
                 .from(parent.getContext())
                 .inflate(R.layout.file_item, parent, false);
         return new ListItemViewHolder(view);
     }
+
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+
 
     @Override
     public void onBindViewHolder(final ListItemViewHolder holder, final int position) {
@@ -175,6 +193,7 @@ public class FileFTPAdapter extends RecyclerView.Adapter<FileFTPAdapter.ListItem
     public int getItemCount() {
         return allFiles.size();
     }
+
 
     static class ListItemViewHolder extends RecyclerView.ViewHolder {
 

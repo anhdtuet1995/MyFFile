@@ -1,37 +1,50 @@
 package work.uet.anhdt.ftpstorageofficial.fragments;
 
+import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import java.util.ArrayList;
+import java.util.Observable;
+import java.util.Observer;
+
 import work.uet.anhdt.ftpstorageofficial.R;
+import work.uet.anhdt.ftpstorageofficial.activities.MainActivity;
+import work.uet.anhdt.ftpstorageofficial.adapters.DownloadAdapter;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DBDownloadFactory;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadManager;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadMetadata;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadStatus;
 
 /**
  * A simple {@link Fragment} subclass.
  * Activities that contain this fragment must implement the
- * {@link DownloadFragment.OnDownloadFragmentInteractionListener} interface
  * to handle interaction events.
  * Use the {@link DownloadFragment#newInstance} factory method to
  * create an instance of this fragment.
  */
-public class DownloadFragment extends Fragment {
+public class DownloadFragment extends Fragment implements View.OnClickListener, SwipeRefreshLayout.OnRefreshListener, Observer,
+        DownloadAdapter.ManagerTaskItemListener {
     // TODO: Rename parameter arguments, choose names that match
-
-    private static final String TAG = DownloadFragment.class.getSimpleName();
     // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
+    private static final String TAG = DownloadFragment.class.getSimpleName();
 
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
-
-    private OnDownloadFragmentInteractionListener mListener;
+    private OnDownloadPoolChanged onDownloadPoolChanged;
+    private ArrayList<DownloadMetadata> downloadMetadataArrayList;
+    private DownloadAdapter downloadAdapter;
+    private SwipeRefreshLayout swipeRefreshDownload;
+    private RecyclerView recyclerViewDownload;
+    private Activity mActivity;
 
     public DownloadFragment() {
         // Required empty public constructor
@@ -41,16 +54,12 @@ public class DownloadFragment extends Fragment {
      * Use this factory method to create a new instance of
      * this fragment using the provided parameters.
      *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
      * @return A new instance of fragment DownloadFragment.
      */
     // TODO: Rename and change types and number of parameters
-    public static DownloadFragment newInstance(String param1, String param2) {
+    public static DownloadFragment newInstance() {
         DownloadFragment fragment = new DownloadFragment();
         Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
         fragment.setArguments(args);
         return fragment;
     }
@@ -59,10 +68,10 @@ public class DownloadFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.d(TAG, "onCreate");
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
+        downloadMetadataArrayList = new ArrayList<>();
+        downloadMetadataArrayList.addAll(DBDownloadFactory.getInstance().getDownloadList());
+        downloadAdapter = new DownloadAdapter(downloadMetadataArrayList, mActivity);
+        downloadAdapter.setManagerTaskItemListener(this);
     }
 
     @Override
@@ -73,18 +82,34 @@ public class DownloadFragment extends Fragment {
         return inflater.inflate(R.layout.fragment_download, container, false);
     }
 
-    // TODO: Rename method, update argument and hook method into UI event
-    public void onButtonPressed(Uri uri) {
-        if (mListener != null) {
-            mListener.onDownloadFragmentInteraction(uri);
-        }
+
+    @Override
+    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        Log.d(TAG, "onViewCreated");
+        initView(view);
+    }
+
+    private void initView(View view) {
+        swipeRefreshDownload = (SwipeRefreshLayout) view.findViewById(R.id.swipeRefreshDownload);
+        swipeRefreshDownload.setOnRefreshListener(this);
+
+        recyclerViewDownload = (RecyclerView) view.findViewById(R.id.recyclerViewDownload);
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(mActivity);
+        linearLayoutManager.setOrientation(LinearLayoutManager.VERTICAL);
+        recyclerViewDownload.setLayoutManager(linearLayoutManager);
+
+        recyclerViewDownload.setAdapter(downloadAdapter);
     }
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
-        if (context instanceof OnDownloadFragmentInteractionListener) {
-            mListener = (OnDownloadFragmentInteractionListener) context;
+        if (context instanceof MainActivity) {
+            mActivity = (Activity) context;
+        }
+        if (context instanceof OnDownloadPoolChanged) {
+            onDownloadPoolChanged = (OnDownloadPoolChanged) context;
         } else {
             throw new RuntimeException(context.toString()
                     + " must implement OnFragmentInteractionListener");
@@ -93,22 +118,96 @@ public class DownloadFragment extends Fragment {
 
     @Override
     public void onDetach() {
+        onDownloadPoolChanged = null;
         super.onDetach();
-        mListener = null;
     }
 
-    /**
-     * This interface must be implemented by activities that contain this
-     * fragment to allow an interaction in this fragment to be communicated
-     * to the activity and potentially other fragments contained in that
-     * activity.
-     * <p>
-     * See the Android Training lesson <a href=
-     * "http://developer.android.com/training/basics/fragments/communicating.html"
-     * >Communicating with Other Fragments</a> for more information.
-     */
-    public interface OnDownloadFragmentInteractionListener {
-        // TODO: Update argument type and name
-        void onDownloadFragmentInteraction(Uri uri);
+    @Override
+    public void onClick(View view) {
+
+    }
+
+    @Override
+    public void onRefresh() {
+        downloadMetadataArrayList.clear();
+        downloadMetadataArrayList.addAll(DBDownloadFactory.getInstance().getDownloadList());
+        downloadAdapter.notifyDataSetChanged();
+        swipeRefreshDownload.setRefreshing(false);
+    }
+
+    @Override
+    public void update(Observable observable, Object o) {
+        if (observable instanceof DownloadManager) {
+            DownloadManager manager = (DownloadManager) observable;
+            final long id = manager.getDownloadId();
+            final DownloadStatus status = manager.getStatus();
+            Log.d(TAG, manager.getDownloadCompleted() + "");
+
+            if (getActivity() != null) {
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d(TAG, "Update list");
+                        if (downloadMetadataArrayList != null && downloadAdapter != null) {
+                            downloadMetadataArrayList.clear();
+                            downloadMetadataArrayList.addAll(DBDownloadFactory.getInstance().getDownloadList());
+                            downloadAdapter.notifyDataSetChanged();
+                            int pos = findPositionHaveDownloadId(id);
+                            if (pos > -1) {
+                                downloadMetadataArrayList.get(pos).setStatus(status);
+                            }
+
+                            downloadAdapter.notifyDataSetChanged();
+                        }
+
+                    }
+                });
+
+            }
+        }
+    }
+
+    private int findPositionHaveDownloadId(long id) {
+        for (int i = 0; i < downloadMetadataArrayList.size(); i++) {
+            if (downloadMetadataArrayList.get(i).getId() == id) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Override
+    public void onStartDownloadPressed(long id) {
+        int pos = findPositionHaveDownloadId(id);
+        if (pos > -1) {
+            downloadMetadataArrayList.get(pos).setStatus(DownloadStatus.DOWNLOADING);
+        }
+
+        downloadAdapter.notifyDataSetChanged();
+        onDownloadPoolChanged.onStartDownloadId(id);
+    }
+
+    @Override
+    public void onPauseDownloadPressed(long id) {
+        int pos = findPositionHaveDownloadId(id);
+        if (pos > -1) {
+            downloadMetadataArrayList.get(pos).setStatus(DownloadStatus.PAUSED);
+        }
+
+        downloadAdapter.notifyDataSetChanged();
+        onDownloadPoolChanged.onPauseDownloadId(id);
+    }
+
+    @Override
+    public void onStopDownloadPressed(long id) {
+        onDownloadPoolChanged.onStopDownloadId(id);
+    }
+
+    public interface OnDownloadPoolChanged {
+        public void onPauseDownloadId(long id);
+
+        public void onStartDownloadId(long id);
+
+        public void onStopDownloadId(long id);
     }
 }

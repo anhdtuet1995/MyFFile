@@ -27,17 +27,33 @@ import android.widget.Toast;
 
 import com.nbsp.materialfilepicker.ui.FilePickerActivity;
 
+import java.io.IOException;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
+
 import work.uet.anhdt.ftpstorageofficial.R;
 import work.uet.anhdt.ftpstorageofficial.fragments.DownloadFragment;
 import work.uet.anhdt.ftpstorageofficial.fragments.FileFragment;
 import work.uet.anhdt.ftpstorageofficial.fragments.UploadFragment;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DBDownloadFactory;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadConfiguration;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadManager;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadMetadata;
+import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadPartsMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadPool;
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.DBUploadFactory;
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadManager;
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadMetadata;
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadPartsMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadPool;
 import work.uet.anhdt.ftpstorageofficial.util.Constant;
 
+import static work.uet.anhdt.ftpstorageofficial.util.Constant.SERVER;
+
 public class MainActivity extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, FileFragment.OnFileFragmentInteractionListener,
-        UploadFragment.OnUploadFragmentInteractionListener, DownloadFragment.OnDownloadFragmentInteractionListener {
+        UploadFragment.OnUploadPoolChanged, DownloadFragment.OnDownloadPoolChanged, Observer {
 
     private static final String TAG = MainActivity.class.getSimpleName();
 
@@ -98,7 +114,7 @@ public class MainActivity extends AppCompatActivity
 
             // Add the fragment to the 'fragment_container' FrameLayout
             getSupportFragmentManager().beginTransaction()
-                    .replace(R.id.fragment_container, fileFragment).commit();
+                    .add(R.id.fragment_container, fileFragment, Constant.FILE_TAB).commit();
         }
 
     }
@@ -204,30 +220,82 @@ public class MainActivity extends AppCompatActivity
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         // Handle navigation view item clicks here.
         int id = item.getItemId();
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+
         if (id == R.id.nav_file) {
-            Log.d(TAG, "FileFragment is Selected");
-
-            fileFragment = new FileFragment();
-            fragmentTransaction.replace(R.id.fragment_container, fileFragment);
-
+            getSupportActionBar().setTitle("My FTP Storage");
+            showFileFragment();
         }
         else if (id == R.id.nav_upload) {
-
-            uploadFragment = new UploadFragment();
-            fragmentTransaction.replace(R.id.fragment_container, uploadFragment);
-
-
+            getSupportActionBar().setTitle("Uploads");
+            showUploadFragment();
         }
         else if (id == R.id.nav_download) {
-            downloadFragment = new DownloadFragment();
-            fragmentTransaction.replace(R.id.fragment_container, downloadFragment);
-
+            getSupportActionBar().setTitle("Downloads");
+            showDownloadFragment();
         }
-        fragmentTransaction.commit();
+
         ((DrawerLayout)findViewById(R.id.drawer_layout)).closeDrawer(GravityCompat.START);
         return true;
+    }
+
+    private void showFileFragment() {
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+        Log.d(TAG, "FileFragment is Selected");
+        if (fragmentManager.findFragmentByTag(Constant.FILE_TAB) == null) {
+            fileFragment = new FileFragment();
+            fragmentTransaction.add(R.id.fragment_container, fileFragment, Constant.FILE_TAB);
+        }
+        else {
+            if (uploadFragment != null) {
+                fragmentTransaction.hide(uploadFragment);
+            }
+            if (downloadFragment != null) {
+                fragmentTransaction.hide(downloadFragment);
+            }
+            fragmentTransaction.show(fileFragment);
+        }
+        fragmentTransaction.commitAllowingStateLoss();
+    }
+
+    private void showUploadFragment() {
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+        Log.d(TAG, "UploadFragment is Selected");
+        if (fragmentManager.findFragmentByTag(Constant.UPLOAD_TAB) == null) {
+            uploadFragment = new UploadFragment();
+            fragmentTransaction.add(R.id.fragment_container, uploadFragment, Constant.UPLOAD_TAB);
+        }
+        else {
+            if (fileFragment != null) {
+                fragmentTransaction.hide(fileFragment);
+            }
+            if (downloadFragment != null) {
+                fragmentTransaction.hide(downloadFragment);
+            }
+            fragmentTransaction.show(uploadFragment);
+        }
+        fragmentTransaction.commitAllowingStateLoss();
+    }
+
+    private void showDownloadFragment() {
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+        Log.d(TAG, "DownloadFragment is Selected");
+        if (fragmentManager.findFragmentByTag(Constant.DOWNLOAD_TAB) == null) {
+            downloadFragment = new DownloadFragment();
+            fragmentTransaction.add(R.id.fragment_container, downloadFragment, Constant.DOWNLOAD_TAB);
+        }
+        else {
+            if (fileFragment != null) {
+                fragmentTransaction.hide(fileFragment);
+            }
+            if (uploadFragment != null) {
+                fragmentTransaction.hide(uploadFragment);
+            }
+            fragmentTransaction.show(downloadFragment);
+        }
+        fragmentTransaction.commitAllowingStateLoss();
     }
 
     @Override
@@ -235,21 +303,108 @@ public class MainActivity extends AppCompatActivity
         if(requestCode == 10 && resultCode == RESULT_OK){
             String filePath = data.getStringExtra(FilePickerActivity.RESULT_FILE_PATH);
             Toast.makeText(this, "Start upload file " + filePath, Toast.LENGTH_SHORT).show();
+            addNewUpload(filePath);
         }
     }
 
+    private void addNewDownload(String url) {
+        DownloadManager downManager = new DownloadManager(url, DownloadConfiguration.DEFAULT_DOWNLOAD_PATH);
+        downManager.addObserver(this);
+        if (downloadFragment == null) {
+            downloadFragment = new DownloadFragment();
+        }
+        downManager.addObserver(downloadFragment);
+        downloadPool.add(downManager);
+        update(downManager, true);
+        downloadFragment.update(downManager, true);
+    }
+
+    private void addNewUpload(String path) {
+        UploadManager uploadManager = new UploadManager(path);
+        uploadManager.addObserver(this);
+        if (uploadFragment == null) {
+            uploadFragment = new UploadFragment();
+        }
+        uploadManager.addObserver(uploadFragment);
+        uploadPool.add(uploadManager);
+        update(uploadManager, true);
+        uploadFragment.update(uploadManager, true);
+    }
+
+
     @Override
-    public void onFileFragmentInteraction(Uri uri) {
+    public void onFileFragmentInteraction(String url) {
+        addNewDownload(SERVER + url.substring(1));
+    }
+
+    @Override
+    public void update(Observable observable, Object o) {
 
     }
 
     @Override
-    public void onUploadFragmentInteraction(Uri uri) {
+    public void onPauseUploadId(long id) {
+        uploadPool.remove(id);
+    }
+
+    @Override
+    public void onStartUploadId(long id) {
+        resumeUploadId(id);
+    }
+
+    @Override
+    public void onStopUploadId(long id) {
+        downloadPool.remove(id);
+    }
+
+    /**
+     * Resumes an existing upload and adds it to the upload pool.
+     * @param uploadId Unique upload id to resume.
+     */
+    public void resumeUploadId(long uploadId) {
+        Log.d(TAG, "resumeUploadId(): " + uploadId);
+        DBUploadFactory factory = DBUploadFactory.getInstance();
+
+        UploadMetadata meta = factory.getUploadMetadata(uploadId);
+        List<UploadPartsMetadata> parts = factory.getUploadPartsList(uploadId);
+
+        UploadManager manager = new UploadManager(meta, parts);
+        manager.addObserver(this);
+
+        uploadPool.add(manager);
 
     }
 
     @Override
-    public void onDownloadFragmentInteraction(Uri uri) {
+    public void onPauseDownloadId(long id) {
+        downloadPool.remove(id);
+    }
+
+    @Override
+    public void onStartDownloadId(long id) {
+        resumeDownloadId(id);
+    }
+
+    @Override
+    public void onStopDownloadId(long id) {
+        downloadPool.remove(id);
+    }
+
+    /**
+     * Resumes an existing download and adds it to the download pool.
+     * @param downloadID Unique upload id to resume.
+     */
+    public void resumeDownloadId(long downloadID) {
+        Log.d(TAG, "resumeUploadId(): " + downloadID);
+        DBDownloadFactory factory = DBDownloadFactory.getInstance();
+
+        DownloadMetadata meta = factory.getDownloadMetadata(downloadID);
+        List<DownloadPartsMetadata> parts = factory.getDownloadPartsList(downloadID);
+
+        DownloadManager manager = new DownloadManager(meta, parts);
+        manager.addObserver(this);
+
+        downloadPool.add(manager);
 
     }
 }
