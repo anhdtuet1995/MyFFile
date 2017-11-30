@@ -9,6 +9,6 @@ import work.uet.anhdt.ftpstorageofficial.application.MyApplication;
 public class UploadConfiguration {
 
     public final static String TEMP_DIRECTORY = MyApplication.getAppContext().getCacheDir().getAbsolutePath();
-    public final static String DEFAULT_UPLOAD_URL = "http://192.168.4.101/test_ftp/file";
+    public final static String DEFAULT_UPLOAD_URL = "http://192.168.4.100/test_ftp/file";
 
 }

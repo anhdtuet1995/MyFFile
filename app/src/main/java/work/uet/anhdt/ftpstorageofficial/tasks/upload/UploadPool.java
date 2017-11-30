@@ -103,6 +103,15 @@ public class UploadPool extends Thread implements Observer {
         remove(manager, true);
     }
 
+    /**
+     * Stop the UploadManager from the upload pool. Calling this will automatically pause the active upload.
+     * Calling this is similar to calling <code>remove(manager, true)</code>
+     * @param manager
+     */
+    public synchronized void stop(UploadManager manager) {
+        Log.d(TAG, "stop upload manager " + manager.getUploadId());
+        remove(manager, false);
+    }
 
     /**
      * Removes the UploadManager from the upload pool.
@@ -118,6 +127,7 @@ public class UploadPool extends Thread implements Observer {
             }
             else {
                 Log.d(TAG, "stop = false");
+                manager.stop();
                 removedManagers.add(manager);
                 uploadManagers.remove(manager);
             }
@@ -132,6 +142,16 @@ public class UploadPool extends Thread implements Observer {
         Log.d(TAG, "remove uploadId " + uploadId);
         UploadManager manager = get(uploadId);
         remove(manager);
+    }
+
+    /**
+     * Stop the UploadManager from the upload pool. Calling this will automatically stop the active upload.
+     * Calling this is similar to calling <code>remove(uploadId)</code>
+     */
+    public synchronized void stop(long uploadId) {
+        Log.d(TAG, "remove uploadId " + uploadId);
+        UploadManager manager = get(uploadId);
+        stop(manager);
     }
 
     /**

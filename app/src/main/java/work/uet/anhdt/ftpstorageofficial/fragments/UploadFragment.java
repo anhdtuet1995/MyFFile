@@ -1,7 +1,10 @@
 package work.uet.anhdt.ftpstorageofficial.fragments;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -26,6 +29,7 @@ import work.uet.anhdt.ftpstorageofficial.tasks.upload.DBUploadFactory;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadManager;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadStatus;
+import work.uet.anhdt.ftpstorageofficial.util.Constant;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -47,6 +51,42 @@ public class UploadFragment extends Fragment implements View.OnClickListener, Sw
     private SwipeRefreshLayout swipeRefreshFile;
     private RecyclerView recyclerViewUpload;
     private Activity mActivity;
+
+    private BroadcastReceiver mNotificationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "Update from broadcast");
+            if (intent.getAction().equals(Constant.BROADCAST_UPDATE_STATUS_UPLOAD)) {
+                long upload_id = intent.getLongExtra("upload_id", -1);
+                UploadStatus download_status = UploadStatus.values()[intent.getIntExtra("status", -1)];
+                int pos = findPositionHaveUploadId(upload_id);
+                if (pos > -1) {
+                    if ((download_status == UploadStatus.UPLOADING && uploadMetadataArrayList.get(pos).getStatus() != UploadStatus.UPLOADING)
+                            || download_status != UploadStatus.UPLOADING)  {
+                        uploadMetadataArrayList.get(pos).setStatus(download_status);
+                        uploadAdapter.notifyDataSetChanged();
+                    }
+
+                }
+                else {
+                    if (uploadMetadataArrayList != null && uploadAdapter != null) {
+                        uploadMetadataArrayList.clear();
+                        uploadMetadataArrayList.addAll(DBUploadFactory.getInstance().getUploadList());
+                        uploadAdapter.notifyDataSetChanged();
+                    }
+                }
+            }
+        }
+    };
+
+    private int findPositionHaveUploadId(long id) {
+        for (int i = 0; i < uploadMetadataArrayList.size(); i++) {
+            if (uploadMetadataArrayList.get(i).getId() == id) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     public UploadFragment() {
         // Required empty public constructor
@@ -119,6 +159,20 @@ public class UploadFragment extends Fragment implements View.OnClickListener, Sw
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume()");
+        mActivity.registerReceiver(mNotificationReceiver, new IntentFilter(Constant.BROADCAST_UPDATE_STATUS_UPLOAD));
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        Log.d(TAG, "onPause()");
+        mActivity.unregisterReceiver(mNotificationReceiver);
+    }
+
+    @Override
     public void onDetach() {
         onUploadPoolChanged = null;
         super.onDetach();
@@ -140,42 +194,8 @@ public class UploadFragment extends Fragment implements View.OnClickListener, Sw
     @Override
     public void update(Observable observable, Object o) {
         if (observable instanceof UploadManager) {
-            UploadManager manager = (UploadManager) observable;
-            final long id = manager.getUploadId();
-            final UploadStatus status = manager.getStatus();
-            Log.d(TAG, manager.getUploadCompleted() + "");
 
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.d(TAG, "Update list");
-                        if (uploadMetadataArrayList != null && uploadAdapter != null) {
-                            uploadMetadataArrayList.clear();
-                            uploadMetadataArrayList.addAll(DBUploadFactory.getInstance().getUploadList());
-                            uploadAdapter.notifyDataSetChanged();
-                            int pos = findPositionHaveUploadId(id);
-                            if (pos > -1) {
-                                uploadMetadataArrayList.get(pos).setStatus(status);
-                            }
-
-                            uploadAdapter.notifyDataSetChanged();
-                        }
-
-                    }
-                });
-
-            }
         }
-    }
-
-    private int findPositionHaveUploadId(long id) {
-        for (int i = 0; i < uploadMetadataArrayList.size(); i++) {
-            if (uploadMetadataArrayList.get(i).getId() == id) {
-                return i;
-            }
-        }
-        return -1;
     }
 
     @Override

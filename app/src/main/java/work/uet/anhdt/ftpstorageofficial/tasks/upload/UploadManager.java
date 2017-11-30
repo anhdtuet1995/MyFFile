@@ -129,8 +129,16 @@ public class UploadManager extends Observable implements Runnable {
         // Finally update the GUI
         updateUploadGUI();
 
-        // Merge the file if download completed
-        if(uploadCompleted == uploadSize) {
+        // Merge the file if upload completed
+        if(uploadCompleted >= uploadSize) {
+            status = UploadStatus.COMPLETED;
+
+            waitJoinUploadedFile();
+        }
+
+        // Merge the file if upload completed
+        DBUploadFactory factory = DBUploadFactory.getInstance();
+        if(factory.getUploadPartsList(metadata.getId()).size() == 0) {
             status = UploadStatus.COMPLETED;
 
             waitJoinUploadedFile();
@@ -144,6 +152,13 @@ public class UploadManager extends Observable implements Runnable {
      */
     public void pause() {
         status = UploadStatus.PAUSED;
+    }
+
+    /**
+     * Stop the upload.
+     */
+    public void stop() {
+        status = UploadStatus.ERROR;
     }
 
     /**
@@ -311,6 +326,7 @@ public class UploadManager extends Observable implements Runnable {
                 out.write(buffer, 0, tmp);//tmp is chunk size. Need it for the last chunk,
 
                 UploadPartsMetadata partData = new UploadPartsMetadata(metadata.getId(), partCounter, startRange, endRange, newFile.getAbsolutePath());
+
                 partsMetaList.add(partData);
 
                 workers[partCounter] = new UploadWorker(partData);
@@ -324,6 +340,7 @@ public class UploadManager extends Observable implements Runnable {
             }
 
             workersAtWork = MAX_WORKER;
+            Log.d(TAG_UPLOAD,"splitFileAndSaveToPartsList() finish split");
         } catch (Throwable throwable) {
             throwable.printStackTrace();
         }
@@ -399,7 +416,7 @@ public class UploadManager extends Observable implements Runnable {
      * Updates the download part file status to XML.
      * @param uploadWorker
      */
-    private synchronized void updatePartDownloadStatus(UploadWorker uploadWorker) {
+    private synchronized void updatePartUploadStatus(UploadWorker uploadWorker) {
         DBUploadFactory factory = DBUploadFactory.getInstance();
 
         UploadPartsMetadata meta = uploadWorker.getPartMeta();
@@ -409,14 +426,11 @@ public class UploadManager extends Observable implements Runnable {
         long uploadSize 	= uploadWorker.getUploadSize();
 
         boolean completed = (totalUpload == uploadSize);
-
+        Log.d(TAG_UPLOAD, "[updatePartUploadStatus] completed = " + completed);
         // Update the start range of current part
         meta.setStart(startRange + totalUpload);
 
-        if (completed)
-            factory.removeSavedUploadParts(meta);
-        else
-            factory.updateSavedUploadParts(meta);
+        factory.updateSavedUploadParts(meta);
 
         setChanged();
         notifyObservers();
@@ -424,11 +438,10 @@ public class UploadManager extends Observable implements Runnable {
 
     /**
      * Manages individual block of a file.
-     * @author Pankaj Prakash
      *
      */
     private class UploadWorker implements Runnable {
-        private final static int BUFFER_SIZE = 1024 * 1024;
+        private final static int BUFFER_SIZE = 1024 * 250;
         private final String TAG_WORKER = UploadWorker.class.getSimpleName();
 
         private String TEMP_PATH;
@@ -473,7 +486,7 @@ public class UploadManager extends Observable implements Runnable {
         public void run() {
             Log.d(TAG_WORKER, "run UploadWorker");
             // Update the changes to XML file
-            updatePartDownloadStatus(this);
+            updatePartUploadStatus(this);
 
             try {
                 FileInputStream fileInputStream = new FileInputStream(new File(
@@ -494,6 +507,11 @@ public class UploadManager extends Observable implements Runnable {
                         "multipart/form-data;boundary=" + boundary);
                 conn.setRequestProperty("ENCTYPE", "multipart/form-data");
                 conn.setRequestProperty("uploaded_file", partMeta.getPath());
+                conn.setRequestProperty("Content-Length", "" + (endRange - startRange));
+                conn.setRequestProperty("Content-Range", "bytes " + (endRange - startRange) + "/" + metadata.getFileSize());
+                   /* Set connection properties */
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0");
+                conn.setRequestProperty("Accept-Language", "en-US,en;q=0.5");
                 // Enable POST method
                 conn.setRequestMethod("POST");
                 // Allow Inputs & Outputs
@@ -532,6 +550,8 @@ public class UploadManager extends Observable implements Runnable {
                                 uploadCompleted += bytesRead;
                             }
 
+                            Log.e(TAG_UPLOAD, uploadCompleted + "/" + uploadSize);
+
                             updateUploadGUI();
 
                             // Stop the download if download manager is paused
@@ -551,6 +571,7 @@ public class UploadManager extends Observable implements Runnable {
                 }
                 // Stop the download if download manager is paused
                 if(status != UploadStatus.PAUSED && status != UploadStatus.ERROR) {
+
                     outputStream.writeBytes(lineEnd);
                     outputStream.writeBytes(twoHyphens + boundary + lineEnd);
                     outputStream.writeBytes("Content-Disposition: form-data; name=\"original_id\"" + lineEnd);
@@ -571,6 +592,12 @@ public class UploadManager extends Observable implements Runnable {
                             break;
                         case 201:
                             Log.i(TAG_WORKER, "Response Successful");
+                            DBUploadFactory factory = DBUploadFactory.getInstance();
+                            factory.removeSavedUploadParts(partMeta);
+                            Log.i(TAG_WORKER, "Response Successful with size is " + factory.getUploadPartsList(metadata.getId()).size());
+                            if (workersAtWork > 0) {
+                                workersAtWork--;
+                            }
                             break;
                         case 500:
                             Log.i(TAG_WORKER, serverResponseMessage);
@@ -618,12 +645,6 @@ public class UploadManager extends Observable implements Runnable {
 
                 Log.d(TAG_WORKER, "Invalid upload URL. " + e.getMessage() + " Error uploading");
             }
-
-			/*
-			 * Update the download part file XML
-			 */
-            Log.d(TAG_WORKER, "update part upload status");
-            updatePartDownloadStatus(this);
         }
 
         /**

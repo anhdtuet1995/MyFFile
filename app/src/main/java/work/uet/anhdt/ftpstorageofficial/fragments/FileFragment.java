@@ -78,8 +78,6 @@ public class FileFragment extends Fragment implements FileFTPAdapter.OnItemClick
 
     }
 
-
-
     private void getAllFiles() {
         Log.d(TAG, "get all files from server");
         GetFilesAPI getFilesAPI = InitServiceRetrofit.getInstance().createService(GetFilesAPI.class);

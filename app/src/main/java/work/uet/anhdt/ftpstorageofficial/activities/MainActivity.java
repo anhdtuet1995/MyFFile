@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
@@ -27,7 +28,11 @@ import android.widget.Toast;
 
 import com.nbsp.materialfilepicker.ui.FilePickerActivity;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
@@ -48,6 +53,7 @@ import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadPartsMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadPool;
 import work.uet.anhdt.ftpstorageofficial.util.Constant;
+import work.uet.anhdt.ftpstorageofficial.util.LogMsg;
 
 import static work.uet.anhdt.ftpstorageofficial.util.Constant.SERVER;
 
@@ -71,7 +77,31 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate ");
+
+        try {
+            File sd = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
+            if (sd.canWrite()) {
+                String currentDBPath = "//data//data//" + getPackageName() + "//databases//myftpstorage";
+                String backupDBPath = "myftpstorage.db";
+                File currentDB = new File(currentDBPath);
+                File backupDB = new File(sd, backupDBPath);
+
+                if (currentDB.exists()) {
+                    FileChannel src = new FileInputStream(currentDB).getChannel();
+                    FileChannel dst = new FileOutputStream(backupDB).getChannel();
+                    dst.transferFrom(src, 0, src.size());
+                    src.close();
+                    dst.close();
+                }
+            }
+        } catch (Exception e) {
+
+        }
+
+
+        LogMsg.d("onCreate()");
+        Log.d(TAG, "onCreate()");
         setContentView(R.layout.activity_main);
 
         requestForPermission();
@@ -121,6 +151,7 @@ public class MainActivity extends AppCompatActivity
 
     private void requestForPermission() {
         Log.d(TAG, "request permission after use app");
+        LogMsg.d(TAG, "request permission after use app");
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED) {
 
@@ -317,6 +348,8 @@ public class MainActivity extends AppCompatActivity
         downloadPool.add(downManager);
         update(downManager, true);
         downloadFragment.update(downManager, true);
+        Intent intent = new Intent(Constant.BROADCAST_DOWNLOAD);
+        sendBroadcast(intent);
     }
 
     private void addNewUpload(String path) {
@@ -334,12 +367,26 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onFileFragmentInteraction(String url) {
+        Toast.makeText(this, "Start download file " + url, Toast.LENGTH_SHORT).show();
         addNewDownload(SERVER + url.substring(1));
     }
 
     @Override
     public void update(Observable observable, Object o) {
-
+        if (observable instanceof DownloadManager) {
+            DownloadManager downloadManager = (DownloadManager) observable;
+            Intent intent = new Intent(Constant.BROADCAST_UPDATE_STATUS_DOWNLOAD);
+            intent.putExtra("download_id", downloadManager.getDownloadId());
+            intent.putExtra("status",downloadManager.getStatus().ordinal());
+            sendBroadcast(intent);
+        }
+        else if (observable instanceof UploadManager) {
+            UploadManager uploadManager = (UploadManager) observable;
+            Intent intent = new Intent(Constant.BROADCAST_UPDATE_STATUS_UPLOAD);
+            intent.putExtra("upload_id", uploadManager.getUploadId());
+            intent.putExtra("status",uploadManager.getStatus().ordinal());
+            sendBroadcast(intent);
+        }
     }
 
     @Override
@@ -354,7 +401,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onStopUploadId(long id) {
-        downloadPool.remove(id);
+        uploadPool.stop(id);
     }
 
     /**
@@ -387,7 +434,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onStopDownloadId(long id) {
-        downloadPool.remove(id);
+        downloadPool.stop(id);
     }
 
     /**
@@ -399,8 +446,12 @@ public class MainActivity extends AppCompatActivity
         DBDownloadFactory factory = DBDownloadFactory.getInstance();
 
         DownloadMetadata meta = factory.getDownloadMetadata(downloadID);
+        Log.d(TAG, "resumeUploadId(): meta info");
+        Log.d(TAG, "resumeUploadId(): meta info + id=" + meta.getId());
+        Log.d(TAG, "resumeUploadId(): meta info + status" + meta.getStatus().name());
+        Log.d(TAG, "resumeUploadId(): meta info + file_name" + meta.getFileName());
         List<DownloadPartsMetadata> parts = factory.getDownloadPartsList(downloadID);
-
+        Log.d(TAG, "resumeUploadId(): + parts size" + parts.size());
         DownloadManager manager = new DownloadManager(meta, parts);
         manager.addObserver(this);
 

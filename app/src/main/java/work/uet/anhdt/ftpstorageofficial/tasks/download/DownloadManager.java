@@ -18,6 +18,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Observable;
 
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadStatus;
+
 /**
  * Created by anansaj on 11/20/2017.
  */
@@ -152,6 +154,12 @@ public class DownloadManager extends Observable implements Runnable {
         status = DownloadStatus.PAUSED;
     }
 
+    /**
+     * Stop the download.
+     */
+    public void stop() {
+        status = DownloadStatus.ERROR;
+    }
 
     /**
      * Returns the current download status.
@@ -259,6 +267,9 @@ public class DownloadManager extends Observable implements Runnable {
 
             int totalParts = (parts > MAX_WORKER) ? MAX_WORKER : parts;
 
+            if (totalParts == 0) {
+                totalParts = 1;
+            }
             long partDownloadSize = downloadSize / totalParts;
             long startRange = 0l;
             long endRange 	= 0l;
@@ -531,7 +542,7 @@ public class DownloadManager extends Observable implements Runnable {
 				/* If connected to server then start the download process. */
                 if (responseCode == HttpURLConnection.HTTP_OK ||
                         responseCode == HttpURLConnection.HTTP_PARTIAL) {
-                    Log.d(TAG, "start download filr part");
+                    Log.d(TAG, "start download file part");
                     downloadFilePart(conn.getInputStream());
 
                 } else {

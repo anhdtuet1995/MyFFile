@@ -137,8 +137,9 @@ public class DBDownloadFactory {
      */
     public synchronized List<DownloadPartsMetadata> getDownloadPartsList(long downloadId) {
         Log.d(TAG, "updateDownloadList(): " + downloadId);
+        DownloadList downloadList = new Select().from(DownloadList.class).where("download_id = ?", downloadId).executeSingle();
         List<DownloadPartsMetadata> list = new ArrayList<>();
-        List<DownloadPart> downloadPartList = new Select().from(DownloadPart.class).where("DownloadList = ?", downloadId).execute();
+        List<DownloadPart> downloadPartList = new Select().from(DownloadPart.class).where("DownloadList = ?", downloadList.getId()).execute();
         for (DownloadPart downloadPart: downloadPartList) {
             long start = downloadPart.startt;
             long end = downloadPart.endt;

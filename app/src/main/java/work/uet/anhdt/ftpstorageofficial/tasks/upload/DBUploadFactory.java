@@ -137,8 +137,10 @@ public class DBUploadFactory {
      */
     public synchronized List<UploadPartsMetadata> getUploadPartsList(long uploadId) {
         Log.d(TAG, "updateUploadList(): " + uploadId);
+        UploadList uploadList = new Select().from(UploadList.class).where("upload_id = ?", uploadId).executeSingle();
         List<UploadPartsMetadata> list = new ArrayList<>();
-        List<UploadPart> uploadPartList = new Select().from(UploadPart.class).where("UploadList = ?", uploadId).execute();
+        List<UploadPart> uploadPartList = new Select().from(UploadPart.class).where("UploadList = ?", uploadList.getId()).execute();
+        Log.d(TAG, "updateUploadList(): " + uploadPartList.size());
         for (UploadPart uploadPart: uploadPartList) {
             long start = uploadPart.startt;
             long end = uploadPart.endt;
@@ -150,6 +152,18 @@ public class DBUploadFactory {
 
         return list;
     }
+
+    /**
+     * Stop upload.
+     * @param uploadId
+     */
+    public synchronized void stopUploadMetadata(long uploadId) {
+        Log.d(TAG, "getUploadMetadata(" + uploadId + ")");
+        UploadList uploadList = new Select().from(UploadList.class).where("upload_id = ?", uploadId).executeSingle();
+        uploadList.status = UploadStatus.ERROR.name();
+        uploadList.save();
+    }
+
 
     /**
      * Update, the saved upload parts.
@@ -185,7 +199,7 @@ public class DBUploadFactory {
     public synchronized void removeSavedUploadParts(UploadPartsMetadata metadata) {
         Log.d(TAG, "removeSavedUploadParts(): " + metadata.getUploadId() + ", upload_id = " + metadata.getId());
         UploadList fileNeedUpdate = new Select().from(UploadList.class).where("upload_id = ?", metadata.getUploadId()).executeSingle();
-        new Delete().from(UploadPart.class).where("UploadList = ?", fileNeedUpdate.getId()).execute();
+        new Delete().from(UploadPart.class).where("UploadList = ?", fileNeedUpdate.getId()).where("part_id = ?", metadata.getId()).execute();
 
     }
 

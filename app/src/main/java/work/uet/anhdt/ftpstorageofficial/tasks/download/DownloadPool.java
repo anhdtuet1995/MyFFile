@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
 
+import work.uet.anhdt.ftpstorageofficial.tasks.upload.UploadManager;
+
 /**
  * Created by anansaj on 11/20/2017.
  */
@@ -118,10 +120,21 @@ public class DownloadPool extends Thread implements Observer {
             }
             else {
                 Log.d(TAG, "stop = false");
+                manager.stop();
                 removedManagers.add(manager);
                 downloadManagers.remove(manager);
             }
         }
+    }
+
+    /**
+     * Stop the UploadManager from the upload pool. Calling this will automatically pause the active upload.
+     * Calling this is similar to calling <code>remove(manager, true)</code>
+     * @param manager
+     */
+    public synchronized void stop(DownloadManager manager) {
+        Log.d(TAG, "stop upload manager " + manager.getDownloadId());
+        remove(manager, false);
     }
 
     /**
@@ -132,6 +145,16 @@ public class DownloadPool extends Thread implements Observer {
         Log.d(TAG, "remove downloadId " + downloadId);
         DownloadManager manager = get(downloadId);
         remove(manager);
+    }
+
+    /**
+     * Stop the UploadManager from the download pool. Calling this will automatically stop the active upload.
+     * Calling this is similar to calling <code>remove(uploadId)</code>
+     */
+    public synchronized void stop(long downloadId) {
+        Log.d(TAG, "remove uploadId " + downloadId);
+        DownloadManager manager = get(downloadId);
+        stop(manager);
     }
 
     /**

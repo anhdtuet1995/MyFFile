@@ -1,7 +1,10 @@
 package work.uet.anhdt.ftpstorageofficial.fragments;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
@@ -25,6 +28,7 @@ import work.uet.anhdt.ftpstorageofficial.tasks.download.DBDownloadFactory;
 import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadManager;
 import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadMetadata;
 import work.uet.anhdt.ftpstorageofficial.tasks.download.DownloadStatus;
+import work.uet.anhdt.ftpstorageofficial.util.Constant;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -45,6 +49,33 @@ public class DownloadFragment extends Fragment implements View.OnClickListener, 
     private SwipeRefreshLayout swipeRefreshDownload;
     private RecyclerView recyclerViewDownload;
     private Activity mActivity;
+
+    private BroadcastReceiver mNotificationReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            Log.d(TAG, "Update from broadcast");
+            if (intent.getAction().equals(Constant.BROADCAST_UPDATE_STATUS_DOWNLOAD)) {
+                long download_id = intent.getLongExtra("download_id", -1);
+                DownloadStatus download_status = DownloadStatus.values()[intent.getIntExtra("status", -1)];
+                int pos = findPositionHaveDownloadId(download_id);
+                if (pos > -1) {
+                    if ((download_status == DownloadStatus.DOWNLOADING && downloadMetadataArrayList.get(pos).getStatus() != DownloadStatus.DOWNLOADING)
+                            || download_status != DownloadStatus.DOWNLOADING)  {
+                        downloadMetadataArrayList.get(pos).setStatus(download_status);
+                        downloadAdapter.notifyDataSetChanged();
+                    }
+
+                }
+                else {
+                    if (downloadMetadataArrayList != null && downloadAdapter != null) {
+                        downloadMetadataArrayList.clear();
+                        downloadMetadataArrayList.addAll(DBDownloadFactory.getInstance().getDownloadList());
+                        downloadAdapter.notifyDataSetChanged();
+                    }
+                }
+            }
+        }
+    };
 
     public DownloadFragment() {
         // Required empty public constructor
@@ -138,32 +169,6 @@ public class DownloadFragment extends Fragment implements View.OnClickListener, 
     @Override
     public void update(Observable observable, Object o) {
         if (observable instanceof DownloadManager) {
-            DownloadManager manager = (DownloadManager) observable;
-            final long id = manager.getDownloadId();
-            final DownloadStatus status = manager.getStatus();
-            Log.d(TAG, manager.getDownloadCompleted() + "");
-
-            if (getActivity() != null) {
-                getActivity().runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Log.d(TAG, "Update list");
-                        if (downloadMetadataArrayList != null && downloadAdapter != null) {
-                            downloadMetadataArrayList.clear();
-                            downloadMetadataArrayList.addAll(DBDownloadFactory.getInstance().getDownloadList());
-                            downloadAdapter.notifyDataSetChanged();
-                            int pos = findPositionHaveDownloadId(id);
-                            if (pos > -1) {
-                                downloadMetadataArrayList.get(pos).setStatus(status);
-                            }
-
-                            downloadAdapter.notifyDataSetChanged();
-                        }
-
-                    }
-                });
-
-            }
         }
     }
 
@@ -174,6 +179,21 @@ public class DownloadFragment extends Fragment implements View.OnClickListener, 
             }
         }
         return -1;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume()");
+        mActivity.registerReceiver(mNotificationReceiver, new IntentFilter(Constant.BROADCAST_DOWNLOAD));
+        mActivity.registerReceiver(mNotificationReceiver, new IntentFilter(Constant.BROADCAST_UPDATE_STATUS_DOWNLOAD));
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        Log.d(TAG, "onPause()");
+        mActivity.unregisterReceiver(mNotificationReceiver);
     }
 
     @Override
